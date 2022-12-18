@@ -1,35 +1,64 @@
-const ScrapeKilimall = async (url) => {
-  const res = await fetch(url);
-  const data = await res.json();
+const puppeteer = require("puppeteer");
 
-  let info = data.data.products;
+const scrapeKilimall = async (url) => {
+  let productDetails = [];
 
-  let itemInfo = info.map((el, idx) => ({
-    uid: el.goods_id,
-    source: "Kilimall",
-    name: el.name,
-    imageUrl: el.images["ORIGIN"],
-    price: el.price_unit,
-  }));
-
-  let urls = itemInfo.map((ids, ix) => {
-    return `https://api.kilimall.com/ke/v1/product/comment/list?goodsId=${ids.uid}&page=1&size=3`;
+  const browser = await puppeteer.launch({
+    headless: true,
   });
 
-  // console.log(urls);
+  let page = await browser.newPage();
 
-  // let requests = urls.map((url) => fetch(url));
+  await page.goto(url, {
+    waitUntil: "networkidle0",
+    timeout: 0,
+  });
 
-  let reviews = await Promise.all(urls.map((url) => fetch(url)))
-    .then((resp) => Promise.all(resp.map((r) => r.json())))
-    .then((result) => {
-      // console.log(result);
-      return result.map((pd) => pd.data.list);
+  let urls = await page.evaluate(() => {
+    pagelink = Array.from(document.querySelectorAll(".showHand"));
+    return (r = pagelink.slice(0, 10).map((el) => el.href));
+  });
+
+  //   console.log(urls);
+
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i];
+    const promise = page.waitForNavigation({ waitUntil: "networkidle2" });
+    await page.goto(url, {
+      waitUntil: "networkidle0",
+      timeout: 0,
+    });
+    await promise;
+
+    let imageUrl = await page.evaluate(() => {
+      return document.querySelector(".preview-box>img").getAttribute("src");
     });
 
-  return reviews;
+    let name = await page.evaluate(() => {
+      return document.querySelector(".goodsTitle").textContent;
+    });
+
+    let price = await page.evaluate(() => {
+      return document.querySelector(".bold").textContent;
+    });
+
+    let reviews = await page.evaluate(() => {
+      revs = Array.from(document.querySelectorAll("#review"));
+      return (r = revs.map((el) => el.textContent));
+    });
+
+    // console.log({ imageUrl, name, price, reviews });
+    productDetails.push({ imageUrl, name, price, reviews });
+  }
+
+  await page.close();
+  await browser.close();
+
+  // console.log(productDetails);
+  return productDetails;
 };
 
-ScrapeKilimall(
-  "https://api.kilimall.com/ke/v1/product/search?size=40&page=1&brand_id=&keyword=iphone+x&order=&min=&max=&free_shipping=&have_gift=&logistic_type=&search_type=filter_search"
-);
+// scrapeKilimall("https://www.kilimall.co.ke/new/commoditysearch?q=iphone%20x");
+
+// export default scrapeKilimall;
+module.exports = { scrapeKilimall };

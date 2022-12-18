@@ -1,12 +1,12 @@
-import puppeteer from "puppeteer";
-import * as cheerio from "cheerio";
+const puppeteer = require("puppeteer");
+const cheerio = require("cheerio");
 
 const scrapeJumia = async (url) => {
   const res = await fetch(url);
   const data = await res.text();
 
   let pageurls = [];
-  let productdetails = [];
+  let productDetails = [];
 
   const $ = cheerio.load(data);
 
@@ -22,18 +22,22 @@ const scrapeJumia = async (url) => {
   // url =
   //   "https://www.jumia.co.ke/iphone-6s-2gb-ram-64gb-12mp-camera-4g-lte-single-sim-rose-gold-apple-mpg267403.html";
   const browser = await puppeteer.launch({
-    headless: true,
+    headless: false,
   });
 
   let page = await browser.newPage();
   for (let i = 0; i < pageurls.length; i++) {
     const url = pageurls[i];
-    const promise = page.waitForNavigation({ waitUntil: "networkidle0" });
+    const promise = page.waitForNavigation({ waitUntil: "networkidle2" });
     await page.goto(url, {
       waitUntil: "networkidle0",
       timeout: 0,
     });
     await promise;
+
+    let imageUrl = await page.evaluate(() => {
+      return document.querySelector(".sldr>a").href;
+    });
 
     let name = await page.evaluate(() => {
       return document.querySelector(".-fs20").textContent;
@@ -48,17 +52,19 @@ const scrapeJumia = async (url) => {
       return (r = revs.map((el) => el.innerHTML));
     });
 
-    productdetails = {
-      name: name,
-      price: price,
-      reviews: reviews,
-    };
-
-    console.log(productdetails);
+    productDetails.push({ imageUrl, name, price, reviews });
   }
 
   await page.close();
   await browser.close();
+
+  console.log(productDetails);
+
+  // return productDetails;
 };
 
-scrapeJumia("https://www.jumia.co.ke/mlp-iphone-x/");
+// scrapeJumia("https://www.jumia.co.ke/mlp-iphone-x/");
+
+// scrapeJumia("https://www.jumia.co.ke/catalog/?q=iphonex");
+
+module.exports = { scrapeJumia };
